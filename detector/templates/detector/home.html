@@ -1,0 +1,194 @@
+{% extends 'detector/base.html' %}
+
+{% block title %}Dashboard - Traffic Monitor{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="bi bi-speedometer2"></i> Traffic Monitoring Dashboard
+            </h1>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card stat-card bg-danger text-white">
+                <div class="stat-label">Total Violations</div>
+                <div class="stat-number">{{ total_violations }}</div>
+                <div><i class="bi bi-exclamation-triangle-fill"></i></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-warning text-white">
+                <div class="stat-label">Pending Review</div>
+                <div class="stat-number">{{ pending_violations }}</div>
+                <div><i class="bi bi-clock-fill"></i></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-success text-white">
+                <div class="stat-label">Active Cameras</div>
+                <div class="stat-number">{{ active_cameras }}</div>
+                <div><i class="bi bi-camera-video-fill"></i></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-primary text-white">
+                <div class="stat-label">Today's Violations</div>
+                <div class="stat-number">{{ violations_today }}</div>
+                <div><i class="bi bi-calendar-day-fill"></i></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <!-- Violations by Type Chart -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-pie-chart"></i> Violations by Type
+                    </h5>
+                    <canvas id="violationTypeChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-lightning"></i> Quick Actions
+                    </h5>
+                    <div class="d-grid gap-3">
+                        <a href="{% url 'cameras_list' %}" class="btn btn-success btn-lg">
+                            <i class="bi bi-camera-video"></i> Live Camera Monitoring
+                        </a>
+                        <a href="{% url 'upload_video' %}" class="btn btn-primary btn-lg">
+                            <i class="bi bi-upload"></i> Upload Video for Analysis
+                        </a>
+                        <a href="{% url 'violations_list' %}" class="btn btn-warning btn-lg">
+                            <i class="bi bi-list-check"></i> Review Pending Violations
+                        </a>
+                        <a href="{% url 'analytics' %}" class="btn btn-info btn-lg text-white">
+                            <i class="bi bi-graph-up-arrow"></i> View Analytics
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Violations -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-clock-history"></i> Recent Violations
+                    </h5>
+                    
+                    {% if recent_violations %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Type</th>
+                                    <th>Camera</th>
+                                    <th>Time</th>
+                                    <th>Confidence</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for violation in recent_violations %}
+                                <tr>
+                                    <td>#{{ violation.id }}</td>
+                                    <td>
+                                        <span class="violation-badge badge-{{ violation.violation_type|lower|cut:' '|cut:'_' }}">
+                                            {{ violation.get_violation_type_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ violation.camera.name }}</td>
+                                    <td>{{ violation.detected_at|date:"Y-m-d H:i" }}</td>
+                                    <td>
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar" role="progressbar" 
+                                                 style="width: {{ violation.confidence_score|floatformat:0|add:'%' }}"
+                                                 aria-valuenow="{{ violation.confidence_score|floatformat:0 }}" 
+                                                 aria-valuemin="0" aria-valuemax="100">
+                                                {{ violation.confidence_score|floatformat:0 }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="status-{{ violation.status|lower }}">
+                                            <i class="bi bi-circle-fill"></i> {{ violation.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'violation_detail' violation.id %}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye"></i> View
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> No violations detected yet.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Violations by Type Chart
+    const ctx = document.getElementById('violationTypeChart');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: [
+                {% for item in violations_by_type %}
+                    '{{ item.violation_type }}',
+                {% endfor %}
+            ],
+            datasets: [{
+                data: [
+                    {% for item in violations_by_type %}
+                        {{ item.count }},
+                    {% endfor %}
+                ],
+                backgroundColor: [
+                    '#e74c3c',
+                    '#f39c12',
+                    '#3498db',
+                    '#27ae60',
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

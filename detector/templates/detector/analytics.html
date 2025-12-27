@@ -1,0 +1,193 @@
+<!-- ========================================= -->
+<!-- detector/templates/detector/analytics.html -->
+<!-- ========================================= -->
+
+{% extends 'detector/base.html' %}
+
+{% block title %}Analytics{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-graph-up"></i> Analytics Dashboard</h1>
+        <div>
+            <select id="daysFilter" class="form-select" onchange="window.location.href='?days=' + this.value">
+                <option value="7" {% if days == 7 %}selected{% endif %}>Last 7 Days</option>
+                <option value="14" {% if days == 14 %}selected{% endif %}>Last 14 Days</option>
+                <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 Days</option>
+                <option value="90" {% if days == 90 %}selected{% endif %}>Last 90 Days</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-calendar"></i> Violations Over Time</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="violationsTimeChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-pie-chart"></i> Violations by Type</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="violationsTypeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-camera-video"></i> Violations by Camera</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="violationsCameraChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-clock"></i> Violations by Hour</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="violationsHourChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Violations Over Time
+const timeCtx = document.getElementById('violationsTimeChart');
+new Chart(timeCtx, {
+    type: 'line',
+    data: {
+        labels: [
+            {% for item in violations_by_day %}
+                '{{ item.day }}',
+            {% endfor %}
+        ],
+        datasets: [{
+            label: 'Violations',
+            data: [
+                {% for item in violations_by_day %}
+                    {{ item.count }},
+                {% endfor %}
+            ],
+            borderColor: '#e74c3c',
+            backgroundColor: 'rgba(231, 76, 60, 0.1)',
+            tension: 0.4
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+});
+
+// Violations by Type
+const typeCtx = document.getElementById('violationsTypeChart');
+new Chart(typeCtx, {
+    type: 'doughnut',
+    data: {
+        labels: [
+            {% for item in violations_by_type %}
+                '{{ item.violation_type }}',
+            {% endfor %}
+        ],
+        datasets: [{
+            data: [
+                {% for item in violations_by_type %}
+                    {{ item.count }},
+                {% endfor %}
+            ],
+            backgroundColor: ['#e74c3c', '#f39c12', '#3498db']
+        }]
+    }
+});
+
+// Violations by Camera
+const cameraCtx = document.getElementById('violationsCameraChart');
+new Chart(cameraCtx, {
+    type: 'bar',
+    data: {
+        labels: [
+            {% for item in violations_by_camera %}
+                '{{ item.camera__name }}',
+            {% endfor %}
+        ],
+        datasets: [{
+            label: 'Violations',
+            data: [
+                {% for item in violations_by_camera %}
+                    {{ item.count }},
+                {% endfor %}
+            ],
+            backgroundColor: '#3498db'
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+});
+
+// Violations by Hour
+const hourCtx = document.getElementById('violationsHourChart');
+new Chart(hourCtx, {
+    type: 'bar',
+    data: {
+        labels: [
+            {% for item in violations_by_hour %}
+                '{{ item.hour }}:00',
+            {% endfor %}
+        ],
+        datasets: [{
+            label: 'Violations',
+            data: [
+                {% for item in violations_by_hour %}
+                    {{ item.count }},
+                {% endfor %}
+            ],
+            backgroundColor: '#27ae60'
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

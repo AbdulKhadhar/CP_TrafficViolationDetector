@@ -1,0 +1,133 @@
+<!-- detector/templates/detector/violations.html -->
+{% extends 'detector/base.html' %}
+
+{% block title %}Violations List{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="bi bi-exclamation-triangle"></i> Traffic Violations</h1>
+    
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Violation Type</label>
+                    <select name="type" class="form-select">
+                        <option value="">All Types</option>
+                        <option value="NO_HELMET" {% if violation_type == 'NO_HELMET' %}selected{% endif %}>No Helmet</option>
+                        <option value="NO_PLATE" {% if violation_type == 'NO_PLATE' %}selected{% endif %}>No Plate</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Status</option>
+                        <option value="PENDING" {% if status == 'PENDING' %}selected{% endif %}>Pending</option>
+                        <option value="CONFIRMED" {% if status == 'CONFIRMED' %}selected{% endif %}>Confirmed</option>
+                        <option value="FALSE_POSITIVE" {% if status == 'FALSE_POSITIVE' %}selected{% endif %}>False Positive</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Camera</label>
+                    <select name="camera" class="form-select">
+                        <option value="">All Cameras</option>
+                        {% for camera in cameras %}
+                        <option value="{{ camera.id }}" {% if camera_id == camera.id|stringformat:"s" %}selected{% endif %}>
+                            {{ camera.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search"></i> Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Violations Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Image</th>
+                            <th>Type</th>
+                            <th>Camera</th>
+                            <th>Time</th>
+                            <th>Confidence</th>
+                            <th>Plate</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for violation in page_obj %}
+                        <tr>
+                            <td>#{{ violation.id }}</td>
+                            <td>
+                                <img src="{{ violation.image.url }}" alt="Violation" style="width: 100px; height: auto; border-radius: 5px;">
+                            </td>
+                            <td>
+                                <span class="violation-badge badge-{{ violation.violation_type|lower|cut:' '|cut:'_' }}">
+                                    {{ violation.get_violation_type_display }}
+                                </span>
+                            </td>
+                            <td>{{ violation.camera.name }}</td>
+                            <td>{{ violation.detected_at|date:"Y-m-d H:i" }}</td>
+                            <td>{{ violation.confidence_score|floatformat:2 }}</td>
+                            <td>{{ violation.license_plate|default:"N/A" }}</td>
+                            <td>
+                                <span class="badge bg-{{ violation.status|lower }}">
+                                    {{ violation.get_status_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <a href="{% url 'violation_detail' violation.id %}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center">No violations found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <nav>
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                    <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

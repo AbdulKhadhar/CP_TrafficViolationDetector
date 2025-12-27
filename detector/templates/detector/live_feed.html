@@ -1,0 +1,197 @@
+<!-- detector/templates/detector/live_feed.html -->
+{% extends 'detector/base.html' %}
+
+{% block title %}Live Feed - {{ camera.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="bi bi-camera-video"></i> {{ camera.name }}</h1>
+                <div>
+                    {% if is_active %}
+                    <a href="{% url 'stop_detection' camera.id %}" class="btn btn-danger">
+                        <i class="bi bi-stop-circle"></i> Stop Detection
+                    </a>
+                    {% else %}
+                    <a href="{% url 'start_detection' camera.id %}" class="btn btn-success">
+                        <i class="bi bi-play-circle"></i> Start Detection
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'home' %}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Live Feed Video -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="bi bi-broadcast"></i> Live Feed</h5>
+                    <span class="badge bg-{{ is_active|yesno:'success,secondary' }}">
+                        {% if is_active %}● LIVE{% else %}○ OFFLINE{% endif %}
+                    </span>
+                </div>
+                <div class="card-body text-center" style="background: #000;">
+                    {% if camera.rtsp_url %}
+                    <div id="videoContainer">
+                        <p class="text-white mt-5">
+                            <i class="bi bi-camera-video" style="font-size: 3rem;"></i><br>
+                            Camera: {{ camera.name }}<br>
+                            <small>{{ camera.location }}</small>
+                        </p>
+                        {% if is_active %}
+                        <div class="spinner-border text-light mt-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="text-white mt-2">Processing feed...</p>
+                        {% else %}
+                        <p class="text-muted mt-3">Click "Start Detection" to begin monitoring</p>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        No RTSP URL configured for this camera. Please add it in the admin panel.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="card mt-3">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <h3 id="totalViolations" class="text-danger">0</h3>
+                            <p class="text-muted">Total Violations</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h3 id="helmetViolations" class="text-warning">0</h3>
+                            <p class="text-muted">No Helmet</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h3 id="plateViolations" class="text-info">0</h3>
+                            <p class="text-muted">No Plate</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Violations Sidebar -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-clock-history"></i> Recent Violations</h5>
+                </div>
+                <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                    <div id="recentViolations">
+                        {% for violation in recent_violations %}
+                        <div class="card mb-2">
+                            <img src="{{ violation.image.url }}" class="card-img-top" alt="Violation">
+                            <div class="card-body p-2">
+                                <p class="mb-1">
+                                    <span class="violation-badge badge-{{ violation.violation_type|lower|cut:' '|cut:'_' }}">
+                                        {{ violation.get_violation_type_display }}
+                                    </span>
+                                </p>
+                                <small class="text-muted">{{ violation.detected_at|date:"H:i:s" }}</small>
+                                {% if violation.license_plate %}
+                                <br><small><strong>{{ violation.license_plate }}</strong></small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="alert alert-info">
+                            No violations detected yet
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Camera Info -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5><i class="bi bi-info-circle"></i> Camera Info</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th>Location:</th>
+                            <td>{{ camera.location }}</td>
+                        </tr>
+                        <tr>
+                            <th>Status:</th>
+                            <td>
+                                <span class="badge bg-{{ camera.is_active|yesno:'success,secondary' }}">
+                                    {{ camera.is_active|yesno:"Active,Inactive" }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Detection:</th>
+                            <td>
+                                <span class="badge bg-{{ is_active|yesno:'success,secondary' }}">
+                                    {{ is_active|yesno:"Running,Stopped" }}
+                                </span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-refresh recent violations every 5 seconds
+{% if is_active %}
+setInterval(function() {
+    fetch('{% url "api_violations" %}?camera={{ camera.id }}&limit=10')
+        .then(response => response.json())
+        .then(data => {
+            updateViolations(data);
+        })
+        .catch(error => console.error('Error:', error));
+}, 5000);
+
+function updateViolations(violations) {
+    // Update counts
+    document.getElementById('totalViolations').textContent = violations.length;
+    
+    let helmetCount = violations.filter(v => v.type === 'NO_HELMET').length;
+    let plateCount = violations.filter(v => v.type === 'NO_PLATE').length;
+    
+    document.getElementById('helmetViolations').textContent = helmetCount;
+    document.getElementById('plateViolations').textContent = plateCount;
+    
+    // Update recent violations list
+    const container = document.getElementById('recentViolations');
+    if (violations.length > 0) {
+        container.innerHTML = violations.slice(0, 10).map(v => `
+            <div class="card mb-2">
+                <div class="card-body p-2">
+                    <p class="mb-1">
+                        <span class="violation-badge badge-${v.type.toLowerCase().replace('_', '')}">
+                            ${v.type.replace('_', ' ')}
+                        </span>
+                    </p>
+                    <small class="text-muted">${new Date(v.time).toLocaleTimeString()}</small>
+                    ${v.plate ? `<br><small><strong>${v.plate}</strong></small>` : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+}
+{% endif %}
+</script>
+{% endblock %}

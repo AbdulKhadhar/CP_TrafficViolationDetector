@@ -1,0 +1,145 @@
+<!-- detector/templates/detector/cameras_list.html -->
+{% extends 'detector/base.html' %}
+
+{% block title %}Live Cameras{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-camera-video"></i> Live Camera Monitoring</h1>
+        <a href="{% url 'home' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+
+    {% if cameras %}
+    <div class="row">
+        {% for camera in cameras %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-camera"></i> {{ camera.name }}
+                    </h5>
+                    <span class="badge bg-{{ camera.is_active|yesno:'success,secondary' }}">
+                        {{ camera.is_active|yesno:"Active,Inactive" }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">
+                        <i class="bi bi-geo-alt"></i> <strong>Location:</strong><br>
+                        {{ camera.location }}
+                    </p>
+                    
+                    {% if camera.rtsp_url %}
+                    <p class="mb-2 text-truncate">
+                        <i class="bi bi-link-45deg"></i> <strong>Stream:</strong><br>
+                        <small class="text-muted">{{ camera.rtsp_url }}</small>
+                    </p>
+                    {% else %}
+                    <p class="mb-2">
+                        <i class="bi bi-webcam"></i> <strong>Source:</strong><br>
+                        <small class="text-muted">USB Webcam</small>
+                    </p>
+                    {% endif %}
+
+                    <hr>
+
+                    <div class="row text-center mb-3">
+                        <div class="col-6">
+                            <h4 class="text-danger mb-0">{{ camera.violations_today }}</h4>
+                            <small class="text-muted">Today</small>
+                        </div>
+                        <div class="col-6">
+                            {% if camera.detection_active %}
+                            <h4 class="text-success mb-0">
+                                <i class="bi bi-record-circle-fill"></i>
+                            </h4>
+                            <small class="text-success">LIVE</small>
+                            {% else %}
+                            <h4 class="text-secondary mb-0">
+                                <i class="bi bi-stop-circle"></i>
+                            </h4>
+                            <small class="text-muted">Stopped</small>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if camera.last_detection %}
+                    <p class="mb-3">
+                        <i class="bi bi-clock"></i> <strong>Last Detection:</strong><br>
+                        <small>{{ camera.last_detection|timesince }} ago</small>
+                    </p>
+                    {% endif %}
+
+                    <div class="d-grid gap-2">
+                        {% if camera.detection_active %}
+                        <a href="{% url 'live_feed' camera.id %}" class="btn btn-primary">
+                            <i class="bi bi-eye"></i> View Live Feed
+                        </a>
+                        <a href="{% url 'stop_detection' camera.id %}" class="btn btn-danger">
+                            <i class="bi bi-stop-circle"></i> Stop Detection
+                        </a>
+                        {% else %}
+                        <a href="{% url 'start_detection' camera.id %}" class="btn btn-success">
+                            <i class="bi bi-play-circle"></i> Start Detection
+                        </a>
+                        <a href="{% url 'live_feed' camera.id %}" class="btn btn-outline-primary">
+                            <i class="bi bi-eye"></i> View Details
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-footer text-muted">
+                    <small>Added {{ camera.created_at|date:"M d, Y" }}</small>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> No cameras configured yet.
+        <hr>
+        <p class="mb-0">
+            Add cameras in the <a href="/admin/detector/camera/" class="alert-link">admin panel</a> to start monitoring.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Instructions Card -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5><i class="bi bi-question-circle"></i> How to Use Live Monitoring</h5>
+        </div>
+        <div class="card-body">
+            <ol>
+                <li><strong>Add Camera:</strong> Go to <a href="/admin/detector/camera/">Admin Panel → Cameras</a> and add a new camera with RTSP URL or leave blank for USB webcam</li>
+                <li><strong>Start Detection:</strong> Click "Start Detection" button on the camera card</li>
+                <li><strong>View Live Feed:</strong> Click "View Live Feed" to see real-time monitoring</li>
+                <li><strong>Review Violations:</strong> Detected violations appear automatically in the dashboard</li>
+                <li><strong>Stop Detection:</strong> Click "Stop Detection" when done</li>
+            </ol>
+            
+            <hr>
+            
+            <h6><i class="bi bi-camera"></i> Camera Setup Examples:</h6>
+            <ul class="mb-0">
+                <li><strong>USB Webcam:</strong> Leave RTSP URL blank, system will use <code>cv2.VideoCapture(0)</code></li>
+                <li><strong>IP Camera (Hikvision):</strong> <code>rtsp://username:password@192.168.1.100:554/Streaming/Channels/101</code></li>
+                <li><strong>IP Camera (Dahua):</strong> <code>rtsp://username:password@192.168.1.100:554/cam/realmonitor?channel=1</code></li>
+                <li><strong>Generic RTSP:</strong> <code>rtsp://camera-ip:554/stream</code></li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-refresh page every 10 seconds to update status
+setTimeout(function() {
+    location.reload();
+}, 10000);
+</script>
+{% endblock %}

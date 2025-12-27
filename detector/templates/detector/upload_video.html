@@ -1,0 +1,131 @@
+<!-- detector/templates/detector/upload_video.html -->
+{% extends 'detector/base.html' %}
+
+{% block title %}Upload Video{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4"><i class="bi bi-upload"></i> Upload Video for Analysis</h1>
+    
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-body">
+                    <form id="uploadForm" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Select Camera Location</label>
+                            <select name="camera_id" class="form-select" required>
+                                <option value="">Choose camera...</option>
+                                {% for camera in cameras %}
+                                <option value="{{ camera.id }}">{{ camera.name }} - {{ camera.location }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Upload Video File</label>
+                            <input type="file" name="video" class="form-control" accept="video/*" required>
+                            <small class="text-muted">Supported formats: MP4, AVI, MOV, MKV</small>
+                        </div>
+                        
+                        <div class="mb-3" id="progressContainer" style="display: none;">
+                            <label class="form-label">Upload Progress</label>
+                            <div class="progress">
+                                <div id="uploadProgress" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%">0%</div>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            <i class="bi bi-upload"></i> Upload and Process
+                        </button>
+                    </form>
+                    
+                    <div id="statusMessage" class="alert mt-3" style="display: none;"></div>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h5><i class="bi bi-info-circle"></i> Instructions</h5>
+                    <ul>
+                        <li>Select the camera location where the video was recorded</li>
+                        <li>Upload clear video footage with visible vehicles and riders</li>
+                        <li>Processing time depends on video length (approx. 1-5 min per min of video)</li>
+                        <li>Detected violations will appear in the Violations page</li>
+                        <li>You can continue using the system while video is processing</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('uploadProgress');
+    const statusMessage = document.getElementById('statusMessage');
+    const submitBtn = this.querySelector('button[type="submit"]');
+    
+    // Show progress bar
+    progressContainer.style.display = 'block';
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Uploading...';
+    
+    // Create XMLHttpRequest for progress tracking
+    const xhr = new XMLHttpRequest();
+    
+    xhr.upload.addEventListener('progress', function(e) {
+        if (e.lengthComputable) {
+            const percentComplete = (e.loaded / e.total) * 100;
+            progressBar.style.width = percentComplete + '%';
+            progressBar.textContent = Math.round(percentComplete) + '%';
+        }
+    });
+    
+    xhr.addEventListener('load', function() {
+        if (xhr.status === 200) {
+            const response = JSON.parse(xhr.responseText);
+            statusMessage.className = 'alert alert-success mt-3';
+            statusMessage.textContent = response.message || 'Video uploaded successfully! Processing started.';
+            statusMessage.style.display = 'block';
+            
+            // Reset form
+            document.getElementById('uploadForm').reset();
+            progressBar.style.width = '100%';
+            
+            // Redirect after 2 seconds
+            setTimeout(function() {
+                window.location.href = '/violations/';
+            }, 2000);
+        } else {
+            statusMessage.className = 'alert alert-danger mt-3';
+            statusMessage.textContent = 'Upload failed. Please try again.';
+            statusMessage.style.display = 'block';
+        }
+        
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="bi bi-upload"></i> Upload and Process';
+    });
+    
+    xhr.addEventListener('error', function() {
+        statusMessage.className = 'alert alert-danger mt-3';
+        statusMessage.textContent = 'Network error occurred. Please try again.';
+        statusMessage.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="bi bi-upload"></i> Upload and Process';
+    });
+    
+    xhr.open('POST', '{% url "upload_video" %}');
+    xhr.setRequestHeader('X-CSRFToken', formData.get('csrfmiddlewaretoken'));
+    xhr.send(formData);
+});
+</script>
+{% endblock %}

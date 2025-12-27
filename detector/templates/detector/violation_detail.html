@@ -1,0 +1,143 @@
+<!-- detector/templates/detector/violation_detail.html -->
+{% extends 'detector/base.html' %}
+
+{% block title %}Violation #{{ violation.id }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="bi bi-file-text"></i> Violation #{{ violation.id }}</h1>
+                <a href="{% url 'violations_list' %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to List
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Images Section -->
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="bi bi-camera"></i> Evidence</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6>Original Capture</h6>
+                        <img src="{{ violation.image.url }}" class="violation-image img-fluid" alt="Violation">
+                    </div>
+                    {% if violation.annotated_image %}
+                    <div class="mb-3">
+                        <h6>Annotated Image</h6>
+                        <img src="{{ violation.annotated_image.url }}" class="violation-image img-fluid" alt="Annotated">
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Details Section -->
+        <div class="col-md-4">
+            <!-- Violation Info -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="bi bi-info-circle"></i> Details</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th>Type:</th>
+                            <td>
+                                <span class="violation-badge badge-{{ violation.violation_type|lower|cut:' '|cut:'_' }}">
+                                    {{ violation.get_violation_type_display }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Camera:</th>
+                            <td>{{ violation.camera.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>Location:</th>
+                            <td>{{ violation.camera.location }}</td>
+                        </tr>
+                        <tr>
+                            <th>Detected:</th>
+                            <td>{{ violation.detected_at|date:"Y-m-d H:i:s" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Vehicle:</th>
+                            <td>{{ violation.get_vehicle_type_display }}</td>
+                        </tr>
+                        <tr>
+                            <th>Confidence:</th>
+                            <td>
+                                <div class="progress">
+                                    <div class="progress-bar" style="width: {{ violation.confidence_score|floatformat:0 }}%">
+                                        {{ violation.confidence_score|floatformat:2 }}
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% if violation.license_plate %}
+                        <tr>
+                            <th>License Plate:</th>
+                            <td><strong>{{ violation.license_plate }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th>Plate Confidence:</th>
+                            <td>{{ violation.plate_confidence|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>Status:</th>
+                            <td>
+                                <span class="badge bg-{{ violation.status|lower }}">
+                                    {{ violation.get_status_display }}
+                                </span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Review Form -->
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-pencil"></i> Review Violation</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-select" required>
+                                <option value="PENDING" {% if violation.status == 'PENDING' %}selected{% endif %}>Pending Review</option>
+                                <option value="CONFIRMED" {% if violation.status == 'CONFIRMED' %}selected{% endif %}>Confirmed</option>
+                                <option value="FALSE_POSITIVE" {% if violation.status == 'FALSE_POSITIVE' %}selected{% endif %}>False Positive</option>
+                                <option value="PROCESSED" {% if violation.status == 'PROCESSED' %}selected{% endif %}>Processed</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <textarea name="notes" class="form-control" rows="4">{{ violation.notes }}</textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-check-circle"></i> Update Status
+                        </button>
+                    </form>
+
+                    {% if violation.reviewed_at %}
+                    <hr>
+                    <small class="text-muted">
+                        Last reviewed by {{ violation.reviewed_by }} on {{ violation.reviewed_at|date:"Y-m-d H:i" }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
