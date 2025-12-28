@@ -168,16 +168,26 @@ def start_live_detection(request, camera_id):
     # Start detection in background thread
     def detection_task():
         try:
+            from detector.ai_models.violation_processor import ViolationProcessor
             processor = ViolationProcessor(camera_id=camera_id)
-            processor.process_live_stream(duration_seconds=3600)  # 1 hour
+            
+            # Use webcam if no RTSP URL
+            rtsp_url = camera.rtsp_url if camera.rtsp_url else None
+            
+            print(f"[DEBUG] Starting detection for camera {camera.name}")
+            print(f"[DEBUG] RTSP URL: {rtsp_url if rtsp_url else 'Using webcam'}")
+            
+            processor.process_live_stream(rtsp_url=rtsp_url, duration_seconds=3600)
         except Exception as e:
-            print(f"Detection error: {e}")
+            print(f"[ERROR] Detection error for camera {camera.name}: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
             if camera_id in active_detections:
                 del active_detections[camera_id]
+                print(f"[DEBUG] Detection stopped for camera {camera.name}")
     
-    thread = threading.Thread(target=detection_task)
-    thread.daemon = True
+    thread = threading.Thread(target=detection_task, daemon=True)
     thread.start()
     
     active_detections[camera_id] = thread
@@ -302,3 +312,96 @@ def cameras_list(request):
     }
     
     return render(request, 'detector/cameras_list.html', context)
+
+# Global storage for video frames
+camera_frames = {}
+
+def generate_video_feed(camera_id):
+    """Generator function for video streaming with bounding boxes"""
+    from detector.ai_models.helmet_detector import HelmetDetector
+    from detector.ai_models.plate_detector import LicensePlateDetector
+    
+    camera = Camera.objects.get(id=camera_id)
+    
+    # Initialize detectors
+    helmet_detector = HelmetDetector(confidence_threshold=0.5)
+    plate_detector = LicensePlateDetector(confidence_threshold=0.5)
+    
+    # Open camera
+    if camera.rtsp_url:
+        cap = cv2.VideoCapture(camera.rtsp_url)
+    else:
+        cap = cv2.VideoCapture(0)  # Webcam
+    
+    # Set camera properties for better performance
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+    
+    print(f"[VIDEO STREAM] Starting for camera {camera.name}")
+    print(f"[VIDEO STREAM] Camera opened: {cap.isOpened()}")
+    
+    frame_count = 0
+    
+    try:
+        while True:
+            success, frame = cap.read()
+            
+            if not success:
+                print(f"[VIDEO STREAM] Failed to read frame")
+                break
+            
+            frame_count += 1
+            
+            # Process every 3rd frame for detection (balance between speed and accuracy)
+            if frame_count % 3 == 0:
+                # Detect violations
+                helmet_violations, helmet_annotated = helmet_detector.detect_helmet_violation(frame)
+                plate_violations, plate_annotated = plate_detector.detect_plate_violation(frame)
+                
+                # Combine annotations
+                annotated = cv2.addWeighted(helmet_annotated, 0.5, plate_annotated, 0.5, 0)
+                
+                # Add stats overlay
+                cv2.putText(annotated, f"Camera: {camera.name}", (10, 30),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv2.putText(annotated, f"Frame: {frame_count}", (10, 60),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                
+                # Store frame for other uses
+                camera_frames[camera_id] = annotated.copy()
+                
+                frame_to_send = annotated
+            else:
+                frame_to_send = frame
+            
+            # Encode frame as JPEG
+            ret, buffer = cv2.imencode('.jpg', frame_to_send)
+            
+            if not ret:
+                continue
+            
+            frame_bytes = buffer.tobytes()
+            
+            # Yield frame in multipart format
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            
+    except GeneratorExit:
+        print(f"[VIDEO STREAM] Client disconnected")
+    except Exception as e:
+        print(f"[VIDEO STREAM] Error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        cap.release()
+        if camera_id in camera_frames:
+            del camera_frames[camera_id]
+        print(f"[VIDEO STREAM] Stopped for camera {camera.name}")
+
+def video_feed(request, camera_id):
+    """Video streaming route with bounding boxes"""
+    return StreamingHttpResponse(
+        generate_video_feed(camera_id),
+        content_type='multipart/x-mixed-replace; boundary=frame'
+    )

@@ -1,4 +1,3 @@
-# detector/urls.py
 from django.urls import path
 from . import views
 
@@ -11,6 +10,7 @@ urlpatterns = [
     path('camera/<int:camera_id>/start/', views.start_live_detection, name='start_detection'),
     path('camera/<int:camera_id>/stop/', views.stop_live_detection, name='stop_detection'),
     path('camera/<int:camera_id>/feed/', views.live_feed, name='live_feed'),
+    path('camera/<int:camera_id>/video/', views.video_feed, name='video_feed'),
     path('analytics/', views.analytics, name='analytics'),
     path('api/violations/', views.api_violations, name='api_violations'),
 ]

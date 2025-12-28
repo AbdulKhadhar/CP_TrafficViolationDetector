@@ -230,23 +230,43 @@ class ViolationProcessor:
         Process live video stream from camera
         
         Args:
-            rtsp_url: RTSP stream URL (uses camera's URL if None)
+            rtsp_url: RTSP stream URL (uses camera's URL if None, or webcam if blank)
             duration_seconds: How long to run (None = indefinite)
             
         Returns:
             total_violations: Total violations detected
         """
+        # Determine video source
         if rtsp_url is None:
             rtsp_url = self.camera.rtsp_url
         
-        if not rtsp_url:
-            raise ValueError("No RTSP URL provided")
+        # Open video capture
+        if rtsp_url:
+            print(f"[PROCESSOR] Connecting to RTSP: {rtsp_url}")
+            cap = cv2.VideoCapture(rtsp_url)
+        else:
+            print(f"[PROCESSOR] Opening webcam (index 0)")
+            cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # Use DirectShow on Windows
+            
+            # Alternative camera indices if 0 doesn't work
+            if not cap.isOpened():
+                print(f"[PROCESSOR] Webcam 0 failed, trying index 1")
+                cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
         
-        cap = cv2.VideoCapture(rtsp_url)
+        # Set camera properties for better compatibility
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cap.set(cv2.CAP_PROP_FPS, 30)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         
         if not cap.isOpened():
-            # Try webcam if RTSP fails
-            cap = cv2.VideoCapture(0)
+            error_msg = "Failed to open camera/stream"
+            print(f"[PROCESSOR ERROR] {error_msg}")
+            raise ValueError(error_msg)
+        
+        print(f"[PROCESSOR] Camera opened successfully!")
+        print(f"[PROCESSOR] Resolution: {int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))}x{int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
+        print(f"[PROCESSOR] FPS: {int(cap.get(cv2.CAP_PROP_FPS))}")
         
         start_time = datetime.now()
         frame_count = 0
@@ -255,35 +275,44 @@ class ViolationProcessor:
         try:
             while True:
                 ret, frame = cap.read()
+                
                 if not ret:
+                    print(f"[PROCESSOR] Failed to read frame at count {frame_count}")
                     break
                 
                 frame_count += 1
                 
-                # Process every 5th frame
+                # Process every 5th frame for efficiency
                 if frame_count % 5 == 0:
                     violations, annotated = self.process_frame(frame)
                     total_violations += violations
                     
-                    # Display frame (optional, for testing)
-                    cv2.imshow('Traffic Monitor', annotated)
-                    
-                    if cv2.waitKey(1) & 0xFF == ord('q'):
-                        break
+                    # Print progress every 30 frames
+                    if frame_count % 30 == 0:
+                        print(f"[PROCESSOR] Processed {frame_count} frames, {total_violations} violations detected")
                 
                 # Check duration
                 if duration_seconds:
                     elapsed = (datetime.now() - start_time).total_seconds()
                     if elapsed >= duration_seconds:
+                        print(f"[PROCESSOR] Duration limit reached: {duration_seconds}s")
                         break
         
+        except KeyboardInterrupt:
+            print(f"[PROCESSOR] Interrupted by user")
+        except Exception as e:
+            print(f"[PROCESSOR ERROR] Exception: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
             cap.release()
-            cv2.destroyAllWindows()
+            print(f"[PROCESSOR] Camera released")
             
             # Update log
             self.log.is_running = False
             self.log.ended_at = datetime.now()
             self.log.save()
+            
+            print(f"[PROCESSOR] Final stats: {frame_count} frames, {total_violations} violations")
         
         return total_violations

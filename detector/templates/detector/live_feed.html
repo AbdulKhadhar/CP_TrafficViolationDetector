@@ -37,27 +37,27 @@
                         {% if is_active %}● LIVE{% else %}○ OFFLINE{% endif %}
                     </span>
                 </div>
-                <div class="card-body text-center" style="background: #000;">
-                    {% if camera.rtsp_url %}
+                <div class="card-body text-center" style="background: #000; min-height: 480px;">
+                    {% if is_active %}
+                    <!-- Live Video Stream with Bounding Boxes -->
+                    <img src="{% url 'video_feed' camera.id %}" 
+                         alt="Live Feed" 
+                         style="max-width: 100%; height: auto; border-radius: 5px;"
+                         onerror="this.src=''; this.alt='Camera feed unavailable. Check console for errors.';">
+                    <p class="text-success mt-2">
+                        <i class="bi bi-broadcast"></i> Live Detection Active
+                    </p>
+                    {% else %}
                     <div id="videoContainer">
                         <p class="text-white mt-5">
                             <i class="bi bi-camera-video" style="font-size: 3rem;"></i><br>
                             Camera: {{ camera.name }}<br>
                             <small>{{ camera.location }}</small>
                         </p>
-                        {% if is_active %}
-                        <div class="spinner-border text-light mt-3" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="text-white mt-2">Processing feed...</p>
-                        {% else %}
                         <p class="text-muted mt-3">Click "Start Detection" to begin monitoring</p>
-                        {% endif %}
-                    </div>
-                    {% else %}
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        No RTSP URL configured for this camera. Please add it in the admin panel.
+                        <a href="{% url 'start_detection' camera.id %}" class="btn btn-success btn-lg mt-3">
+                            <i class="bi bi-play-circle"></i> Start Detection
+                        </a>
                     </div>
                     {% endif %}
                 </div>
